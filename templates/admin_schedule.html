@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule Management - Barber Booking System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-clock"></i> Schedule Management</h2>
+            <div>
+                <a href="{{ url_for('admin') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-cog"></i> Admin Panel
+                </a>
+                <a href="{{ url_for('calendar') }}" class="btn btn-secondary">
+                    <i class="fas fa-calendar"></i> Calendar
+                </a>
+            </div>
+        </div>
+        <p class="text-muted">Manage opening hours and closed days. Default hours are 9:00 AM - 4:00 PM.</p>
+    </div>
+</div>
+
+<!-- Add Schedule Override Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-plus"></i> Add/Update Schedule Override</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_schedule_override') }}">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="date" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="date" name="date" 
+                                   min="{{ (schedule_data[0].date).strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="is_open" class="form-label">Status</label>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="is_open" name="is_open" 
+                                       checked onchange="toggleHours()">
+                                <label class="form-check-label" for="is_open">Open</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2" id="opening_time_div">
+                            <label for="opening_time" class="form-label">Opening Time</label>
+                            <input type="time" class="form-control" id="opening_time" name="opening_time" value="09:00">
+                        </div>
+                        <div class="col-md-2" id="closing_time_div">
+                            <label for="closing_time" class="form-label">Closing Time</label>
+                            <input type="time" class="form-control" id="closing_time" name="closing_time" value="16:00">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="note" class="form-label">Note (Optional)</label>
+                            <input type="text" class="form-control" id="note" name="note" 
+                                   placeholder="e.g., Holiday, Early close">
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Schedule Override
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Calendar -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calendar-alt"></i> Next 30 Days Schedule</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th>Status</th>
+                                <th>Hours</th>
+                                <th>Note</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for day in schedule_data %}
+                                <tr class="{{ 'table-danger' if not day.is_open else 'table-info' if day.has_override else '' }}">
+                                    <td>
+                                        <strong>{{ day.date.strftime('%Y-%m-%d') }}</strong>
+                                    </td>
+                                    <td>
+                                        {{ day.date.strftime('%A') }}
+                                    </td>
+                                    <td>
+                                        {% if day.is_open %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check"></i> Open
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times"></i> Closed
+                                            </span>
+                                        {% endif %}
+                                        
+                                        {% if day.has_override %}
+                                            <span class="badge bg-warning ms-1">
+                                                <i class="fas fa-edit"></i> Custom
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ day.hours }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if day.note %}
+                                            <small class="text-muted">{{ day.note }}</small>
+                                        {% else %}
+                                            <small class="text-muted">-</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if day.has_override %}
+                                            <form method="POST" action="{{ url_for('delete_schedule_override', override_id=day.override_id) }}" 
+                                                  style="display: inline;">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger delete-override-btn" 
+                                                        data-date="{{ day.date.strftime('%B %d, %Y') }}">
+                                                    <i class="fas fa-trash"></i> Remove
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <button type="button" class="btn btn-sm btn-outline-primary customize-btn" 
+                                                    data-date="{{ day.date.strftime('%Y-%m-%d') }}"
+                                                    data-open="true" 
+                                                    data-opening="09:00" 
+                                                    data-closing="16:00" 
+                                                    data-note="">
+                                                <i class="fas fa-edit"></i> Customize
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleHours() {
+    const isOpen = document.getElementById('is_open').checked;
+    const openingDiv = document.getElementById('opening_time_div');
+    const closingDiv = document.getElementById('closing_time_div');
+    
+    if (isOpen) {
+        openingDiv.style.display = 'block';
+        closingDiv.style.display = 'block';
+    } else {
+        openingDiv.style.display = 'none';
+        closingDiv.style.display = 'none';
+    }
+}
+
+function fillForm(date, isOpen, openTime, closeTime, note) {
+    document.getElementById('date').value = date;
+    document.getElementById('is_open').checked = isOpen;
+    document.getElementById('opening_time').value = openTime;
+    document.getElementById('closing_time').value = closeTime;
+    document.getElementById('note').value = note;
+    toggleHours();
+    
+    // Scroll to form
+    document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Initialize form state
+document.addEventListener('DOMContentLoaded', function() {
+    toggleHours();
+    
+    // Add event listeners for customize buttons
+    document.querySelectorAll('.customize-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const date = this.getAttribute('data-date');
+            const isOpen = this.getAttribute('data-open') === 'true';
+            const opening = this.getAttribute('data-opening');
+            const closing = this.getAttribute('data-closing');
+            const note = this.getAttribute('data-note');
+            fillForm(date, isOpen, opening, closing, note);
+        });
+    });
+    
+    // Add event listeners for delete buttons
+    document.querySelectorAll('.delete-override-btn').forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            const dateStr = this.getAttribute('data-date');
+            const confirmed = confirm('Remove schedule override for ' + dateStr + '?');
+            if (!confirmed) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    });
+});
+</script>
+{% endblock %} 

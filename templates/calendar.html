@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar - Barber Booking System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-calendar"></i> Booking Calendar</h2>
+        <p class="text-muted">Select a date and available time slot to book your appointment.</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Date Selection -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calendar-day"></i> Select Date</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for date in dates %}
+                        <a href="{{ url_for('calendar', date=date.strftime('%Y-%m-%d')) }}" 
+                           class="list-group-item list-group-item-action {{ 'active' if date == selected_date else '' }}">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ date.strftime('%A') }}</h6>
+                                <small>{{ date.strftime('%b %d') }}</small>
+                            </div>
+                            <p class="mb-1">{{ date.strftime('%Y-%m-%d') }}</p>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Slots -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-clock"></i> Available Slots for {{ selected_date.strftime('%A, %B %d, %Y') }}</h5>
+                {% if schedule_info.is_custom %}
+                    <div class="mt-2">
+                        {% if schedule_info.is_open %}
+                            <span class="badge bg-info">
+                                <i class="fas fa-clock"></i> Custom Hours: {{ schedule_info.hours }}
+                            </span>
+                            {% if schedule_info.note %}
+                                <span class="badge bg-warning ms-1">{{ schedule_info.note }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-times"></i> {{ schedule_info.note }}
+                            </span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if not schedule_info.is_open %}
+                    <div class="alert alert-danger text-center">
+                        <i class="fas fa-store-slash fa-2x mb-2"></i>
+                        <h5>Closed Today</h5>
+                        <p class="mb-0">{{ schedule_info.note }}</p>
+                    </div>
+                {% elif available_slots %}
+                    <div class="row">
+                        {% for slot in available_slots %}
+                            <div class="col-md-3 col-sm-4 col-6 mb-2">
+                                <form method="POST" action="{{ url_for('book') }}" style="display: inline;">
+                                    <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                                    <input type="hidden" name="time_slot" value="{{ slot }}">
+                                    <button type="submit" class="btn btn-outline-success w-100 booking-slot available">
+                                        <i class="fas fa-plus"></i> {{ slot }}
+                                    </button>
+                                </form>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> No available slots for this date.
+                    </div>
+                {% endif %}
+                
+                {% if booked_slots %}
+                    <h6 class="mt-4"><i class="fas fa-times-circle text-danger"></i> Booked Slots:</h6>
+                    <div class="row">
+                        {% for slot in booked_slots %}
+                            <div class="col-md-3 col-sm-4 col-6 mb-2">
+                                <div class="booking-slot booked">
+                                    <i class="fas fa-times"></i> {{ slot }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not session.is_admin and user_bookings %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list"></i> Your Bookings</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for booking in user_bookings %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-calendar-day"></i> 
+                                        {{ booking.date.strftime('%A, %B %d, %Y') }}
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-clock"></i> {{ booking.time_slot }}
+                                    </td>
+                                    <td>
+                                        {% if booking.date >= selected_date %}
+                                            <span class="badge bg-success">Upcoming</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Past</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if booking.date >= selected_date %}
+                                            <form method="POST" action="{{ url_for('cancel') }}" style="display: inline;">
+                                                <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                        onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                                    <i class="fas fa-times"></i> Cancel
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <span class="text-muted">Completed</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if session.is_admin %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 
+            You are logged in as an administrator. Use the <a href="{{ url_for('admin') }}" class="alert-link">Admin Panel</a> to manage all bookings.
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %} 

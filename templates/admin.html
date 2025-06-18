@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Barber Booking System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-cog"></i> Admin Panel</h2>
+            <a href="{{ url_for('calendar') }}" class="btn btn-secondary">
+                <i class="fas fa-calendar"></i> Back to Calendar
+            </a>
+        </div>
+        <p class="text-muted">Manage all user bookings from this panel.</p>
+    </div>
+</div>
+
+{% if bookings_by_date %}
+    {% for date_str, date_bookings in bookings_by_date.items() %}
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-day"></i> 
+                    {{ date_bookings[0][0].date.strftime('%A, %B %d, %Y') }}
+                    <span class="badge bg-light text-dark ms-2">{{ date_bookings|length }} booking(s)</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Booked At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for booking, user in date_bookings %}
+                                <tr>
+                                    <td>
+                                        <strong><i class="fas fa-clock"></i> {{ booking.time_slot }}</strong>
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-user"></i> {{ user.username }}
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-envelope"></i> {{ user.email }}
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-phone"></i> {{ user.phone }}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ booking.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('cancel') }}" style="display: inline;">
+                                            <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="return confirm('Are you sure you want to cancel this booking for {{ user.username }}?')">
+                                                <i class="fas fa-trash"></i> Cancel
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Bookings Found</h4>
+                    <p class="text-muted">There are currently no bookings in the system.</p>
+                    <a href="{{ url_for('calendar') }}" class="btn btn-primary">
+                        <i class="fas fa-calendar"></i> Go to Calendar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-info-circle"></i> Admin Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-cog"></i> System Settings:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Business Hours:</strong> 9:00 AM - 4:00 PM</li>
+                            <li><strong>Slot Duration:</strong> 1 hour</li>
+                            <li><strong>Booking Window:</strong> Next 14 days</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-chart-bar"></i> Quick Stats:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Total Bookings:</strong> 
+                                {% set total_bookings = bookings_by_date.values() | map('length') | sum %}
+                                {{ total_bookings }}
+                            </li>
+                            <li><strong>Dates with Bookings:</strong> {{ bookings_by_date.keys() | list | length }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
