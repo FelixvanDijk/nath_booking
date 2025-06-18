@@ -140,30 +140,31 @@ def send_booking_email(user_email, username, booking_date, time_slot, is_confirm
     """Send email notification for booking confirmation or cancellation"""
     try:
         if is_confirmation:
-            subject = "Booking Confirmation - Barber Appointment"
+            subject = "Booking Confirmation - S&F Barbers, Mold"
             body = f"""
 Dear {username},
 
-Your barber appointment has been confirmed!
+Your appointment at S&F Barbers in Mold has been confirmed!
 
 📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
 ⏰ Time: {time_slot}
 
-Please arrive 5 minutes early for your appointment.
+Please arrive 5 minutes early for your appointment with Nath.
 
 If you need to cancel or reschedule, please log into your account at least 2 hours before your appointment time.
 
-Thank you for choosing our barber services!
+Thank you for choosing S&F Barbers!
 
 Best regards,
-Barber Booking Team
+Nath
+S&F Barbers, Mold
             """
         else:
-            subject = "Booking Cancellation - Barber Appointment"
+            subject = "Booking Cancellation - S&F Barbers, Mold"
             body = f"""
 Dear {username},
 
-Your barber appointment has been cancelled.
+Your appointment at S&F Barbers in Mold has been cancelled.
 
 📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
 ⏰ Time: {time_slot}
@@ -173,7 +174,8 @@ If this cancellation was unexpected, please contact us or book a new appointment
 Thank you for your understanding.
 
 Best regards,
-Barber Booking Team
+Nath
+S&F Barbers, Mold
             """
         
         msg = Message(subject=subject, recipients=[user_email], body=body)
