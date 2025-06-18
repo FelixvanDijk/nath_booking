@@ -21,7 +21,7 @@
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">
                     <i class="fas fa-calendar-day"></i> 
-                    {{ date_bookings[0][0].date.strftime('%A, %B %d, %Y') }}
+                    {{ date_bookings[0].date.strftime('%A, %B %d, %Y') }}
                     <span class="badge bg-light text-dark ms-2">{{ date_bookings|length }} booking(s)</span>
                 </h5>
             </div>
@@ -39,19 +39,42 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for booking, user in date_bookings %}
-                                <tr>
+                            {% for booking in date_bookings %}
+                                <tr class="{{ 'table-warning' if booking.is_guest_booking else '' }}">
                                     <td>
                                         <strong><i class="fas fa-clock"></i> {{ booking.time_slot }}</strong>
                                     </td>
                                     <td>
-                                        <i class="fas fa-user"></i> {{ user.username }}
+                                        {% if booking.is_guest_booking %}
+                                            <i class="fas fa-user-friends"></i> {{ booking.guest_name }}
+                                            {% if booking.admin_note %}
+                                                <br><small class="text-muted">Note: {{ booking.admin_note }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="fas fa-user"></i> {{ booking.user.username }}
+                                        {% endif %}
                                     </td>
                                     <td>
-                                        <i class="fas fa-envelope"></i> {{ user.email }}
+                                        {% if booking.is_guest_booking %}
+                                            {% if booking.guest_email %}
+                                                <i class="fas fa-envelope"></i> {{ booking.guest_email }}
+                                            {% else %}
+                                                <small class="text-muted">No email</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="fas fa-envelope"></i> {{ booking.user.email }}
+                                        {% endif %}
                                     </td>
                                     <td>
-                                        <i class="fas fa-phone"></i> {{ user.phone }}
+                                        {% if booking.is_guest_booking %}
+                                            {% if booking.guest_phone %}
+                                                <i class="fas fa-phone"></i> {{ booking.guest_phone }}
+                                            {% else %}
+                                                <small class="text-muted">No phone</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="fas fa-phone"></i> {{ booking.user.phone }}
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <small class="text-muted">
@@ -62,7 +85,7 @@
                                         <form method="POST" action="{{ url_for('cancel') }}" style="display: inline;">
                                             <input type="hidden" name="booking_id" value="{{ booking.id }}">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" 
-                                                    onclick="return confirm('Are you sure you want to cancel this booking for {{ user.username }}?')">
+                                                    onclick="return confirm('Are you sure you want to cancel this booking for {{ booking.guest_name if booking.is_guest_booking else booking.user.username }}?')">
                                                 <i class="fas fa-trash"></i> Cancel
                                             </button>
                                         </form>

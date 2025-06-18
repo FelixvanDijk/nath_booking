@@ -38,9 +38,14 @@ class User(db.Model):
 
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Nullable for guest bookings
     date = db.Column(db.Date, nullable=False)
     time_slot = db.Column(db.String(10), nullable=False)  # e.g., "09:00"
+    guest_name = db.Column(db.String(100))  # For non-registered customers
+    guest_phone = db.Column(db.String(20))  # For non-registered customers
+    guest_email = db.Column(db.String(120))  # For non-registered customers
+    admin_note = db.Column(db.String(200))  # Admin's private note
+    is_guest_booking = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ScheduleOverride(db.Model):
@@ -356,20 +361,42 @@ def cancel():
         flash('You can only cancel your own bookings.', 'danger')
         return redirect(url_for('calendar'))
     
-    # Get user for email notification
-    user = User.query.get(booking.user_id)
     booking_date = booking.date
     time_slot = booking.time_slot
+    
+    # Handle email notification based on booking type
+    email_sent = False
+    if booking.is_guest_booking:
+        # For guest bookings, use guest email if available
+        if booking.guest_email:
+            email_sent = send_booking_email(
+                booking.guest_email, 
+                booking.guest_name, 
+                booking_date, 
+                time_slot, 
+                is_confirmation=False
+            )
+    else:
+        # For regular user bookings, get user and send email
+        user = User.query.get(booking.user_id)
+        if user:
+            email_sent = send_booking_email(
+                user.email, 
+                user.username, 
+                booking_date, 
+                time_slot, 
+                is_confirmation=False
+            )
     
     # Delete booking
     db.session.delete(booking)
     db.session.commit()
     
-    # Send cancellation email
-    if send_booking_email(user.email, user.username, booking_date, time_slot, is_confirmation=False):
+    # Show appropriate success message
+    if email_sent:
         flash('Booking cancelled successfully. Cancellation email sent.', 'success')
     else:
-        flash('Booking cancelled successfully. (Email notification failed)', 'warning')
+        flash('Booking cancelled successfully.', 'success')
     
     if is_admin():
         return redirect(url_for('admin'))
@@ -379,16 +406,16 @@ def cancel():
 @app.route('/admin')
 @admin_required
 def admin():
-    # Get all bookings with user information
-    bookings = db.session.query(Booking, User).join(User).order_by(Booking.date, Booking.time_slot).all()
+    # Get all bookings with user information (including guest bookings)
+    bookings = db.session.query(Booking).outerjoin(User).order_by(Booking.date, Booking.time_slot).all()
     
     # Group bookings by date
     bookings_by_date = {}
-    for booking, user in bookings:
+    for booking in bookings:
         date_str = booking.date.strftime('%Y-%m-%d')
         if date_str not in bookings_by_date:
             bookings_by_date[date_str] = []
-        bookings_by_date[date_str].append((booking, user))
+        bookings_by_date[date_str].append(booking)
     
     return render_template('admin.html', bookings_by_date=bookings_by_date)
 
@@ -479,6 +506,152 @@ def delete_schedule_override(override_id):
     db.session.commit()
     flash(f'Schedule override removed for {date_str}. Default hours will apply.', 'success')
     return redirect(url_for('admin_schedule'))
+
+@app.route('/admin/book/<date>/<time_slot>')
+@admin_required
+def admin_book_slot(date, time_slot):
+    """Admin booking interface for a specific slot"""
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        flash('Invalid date format.', 'danger')
+        return redirect(url_for('calendar'))
+    
+    # Check if slot is available
+    existing_booking = Booking.query.filter_by(date=selected_date, time_slot=time_slot).first()
+    if existing_booking:
+        flash('This time slot is already booked.', 'danger')
+        return redirect(url_for('calendar', date=date))
+    
+    # Check if the date/time is within business hours
+    schedule_info = get_schedule_info(selected_date)
+    if not schedule_info['is_open']:
+        flash('Cannot book on a closed day.', 'danger')
+        return redirect(url_for('calendar', date=date))
+    
+    return render_template('admin_book.html', 
+                         selected_date=selected_date, 
+                         time_slot=time_slot)
+
+@app.route('/admin/search-users')
+@admin_required
+def search_users():
+    """Search for users by name, email, or phone"""
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify([])
+    
+    users = User.query.filter(
+        (User.username.contains(query)) |
+        (User.email.contains(query)) |
+        (User.phone.contains(query))
+    ).limit(10).all()
+    
+    user_list = []
+    for user in users:
+        user_list.append({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'phone': user.phone
+        })
+    
+    return jsonify(user_list)
+
+@app.route('/admin/book-for-user', methods=['POST'])
+@admin_required
+def book_for_user():
+    """Admin books a slot for an existing user"""
+    selected_date_str = request.form['date']
+    time_slot = request.form['time_slot']
+    user_id = request.form.get('user_id')
+    
+    try:
+        selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        flash('Invalid date format.', 'danger')
+        return redirect(url_for('calendar'))
+    
+    # Check if slot is still available
+    existing_booking = Booking.query.filter_by(date=selected_date, time_slot=time_slot).first()
+    if existing_booking:
+        flash('This time slot is no longer available.', 'danger')
+        return redirect(url_for('calendar', date=selected_date_str))
+    
+    # Get user
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('calendar', date=selected_date_str))
+    
+    # Create booking
+    new_booking = Booking(
+        user_id=user.id, 
+        date=selected_date, 
+        time_slot=time_slot,
+        is_guest_booking=False
+    )
+    db.session.add(new_booking)
+    db.session.commit()
+    
+    # Send confirmation email
+    if send_booking_email(user.email, user.username, selected_date, time_slot, is_confirmation=True):
+        flash(f'Booking created for {user.username} on {selected_date} at {time_slot}. Email sent.', 'success')
+    else:
+        flash(f'Booking created for {user.username} on {selected_date} at {time_slot}. (Email failed)', 'warning')
+    
+    return redirect(url_for('calendar', date=selected_date_str))
+
+@app.route('/admin/book-guest', methods=['POST'])
+@admin_required
+def book_guest():
+    """Admin books a slot for a walk-in/guest customer"""
+    selected_date_str = request.form['date']
+    time_slot = request.form['time_slot']
+    guest_name = request.form.get('guest_name', '').strip()
+    guest_phone = request.form.get('guest_phone', '').strip()
+    guest_email = request.form.get('guest_email', '').strip()
+    admin_note = request.form.get('admin_note', '').strip()
+    
+    try:
+        selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        flash('Invalid date format.', 'danger')
+        return redirect(url_for('calendar'))
+    
+    if not guest_name:
+        flash('Guest name is required.', 'danger')
+        return redirect(url_for('admin_book_slot', date=selected_date_str, time_slot=time_slot))
+    
+    # Check if slot is still available
+    existing_booking = Booking.query.filter_by(date=selected_date, time_slot=time_slot).first()
+    if existing_booking:
+        flash('This time slot is no longer available.', 'danger')
+        return redirect(url_for('calendar', date=selected_date_str))
+    
+    # Create guest booking
+    new_booking = Booking(
+        date=selected_date,
+        time_slot=time_slot,
+        guest_name=guest_name,
+        guest_phone=guest_phone,
+        guest_email=guest_email,
+        admin_note=admin_note,
+        is_guest_booking=True
+    )
+    db.session.add(new_booking)
+    db.session.commit()
+    
+    # Send email if guest provided email
+    if guest_email:
+        if send_booking_email(guest_email, guest_name, selected_date, time_slot, is_confirmation=True):
+            flash(f'Guest booking created for {guest_name} on {selected_date} at {time_slot}. Email sent.', 'success')
+        else:
+            flash(f'Guest booking created for {guest_name} on {selected_date} at {time_slot}. (Email failed)', 'warning')
+    else:
+        flash(f'Guest booking created for {guest_name} on {selected_date} at {time_slot}.', 'success')
+    
+    return redirect(url_for('calendar', date=selected_date_str))
 
 if __name__ == '__main__':
     with app.app_context():

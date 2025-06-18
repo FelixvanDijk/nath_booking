@@ -67,13 +67,22 @@
                     <div class="row">
                         {% for slot in available_slots %}
                             <div class="col-md-3 col-sm-4 col-6 mb-2">
-                                <form method="POST" action="{{ url_for('book') }}" style="display: inline;">
-                                    <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
-                                    <input type="hidden" name="time_slot" value="{{ slot }}">
-                                    <button type="submit" class="btn btn-outline-success w-100 booking-slot available">
-                                        <i class="fas fa-plus"></i> {{ slot }}
-                                    </button>
-                                </form>
+                                {% if session.is_admin %}
+                                    <!-- Admin can click to book for others -->
+                                    <a href="{{ url_for('admin_book_slot', date=selected_date.strftime('%Y-%m-%d'), time_slot=slot) }}" 
+                                       class="btn btn-outline-primary w-100 booking-slot available">
+                                        <i class="fas fa-user-plus"></i> {{ slot }}
+                                    </a>
+                                {% else %}
+                                    <!-- Regular users book for themselves -->
+                                    <form method="POST" action="{{ url_for('book') }}" style="display: inline;">
+                                        <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                                        <input type="hidden" name="time_slot" value="{{ slot }}">
+                                        <button type="submit" class="btn btn-outline-success w-100 booking-slot available">
+                                            <i class="fas fa-plus"></i> {{ slot }}
+                                        </button>
+                                    </form>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>

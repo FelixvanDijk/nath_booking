@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Booking - S&F Barbers, Mold{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-user-plus"></i> Book Appointment</h2>
+            <a href="{{ url_for('calendar', date=selected_date.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Calendar
+            </a>
+        </div>
+        <p class="text-muted">Booking slot for {{ selected_date.strftime('%A, %B %d, %Y') }} at {{ time_slot }}</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Search Existing Users -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-search"></i> Book for Existing Customer</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="user-search" class="form-label">Search by name, email, or phone</label>
+                    <input type="text" class="form-control" id="user-search" 
+                           placeholder="Start typing to search..." autocomplete="off">
+                    <div id="search-results" class="mt-2"></div>
+                </div>
+                
+                <form method="POST" action="{{ url_for('book_for_user') }}" id="user-booking-form" style="display: none;">
+                    <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="time_slot" value="{{ time_slot }}">
+                    <input type="hidden" name="user_id" id="selected-user-id">
+                    
+                    <div class="alert alert-info" id="selected-user-info"></div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-calendar-plus"></i> Book for This Customer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Book Guest/Walk-in -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-user-friends"></i> Book Walk-in / Guest</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('book_guest') }}">
+                    <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="time_slot" value="{{ time_slot }}">
+                    
+                    <div class="mb-3">
+                        <label for="guest_name" class="form-label">Customer Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="guest_name" name="guest_name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="guest_phone" class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control" id="guest_phone" name="guest_phone" 
+                               placeholder="Optional">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="guest_email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="guest_email" name="guest_email" 
+                               placeholder="Optional - for confirmation email">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="admin_note" class="form-label">Private Note</label>
+                        <textarea class="form-control" id="admin_note" name="admin_note" rows="2" 
+                                  placeholder="Private note for yourself (e.g., 'Regular customer', 'First time')"></textarea>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-calendar-plus"></i> Book Guest Appointment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let searchTimeout;
+const userSearch = document.getElementById('user-search');
+const searchResults = document.getElementById('search-results');
+const userBookingForm = document.getElementById('user-booking-form');
+const selectedUserInfo = document.getElementById('selected-user-info');
+const selectedUserId = document.getElementById('selected-user-id');
+
+userSearch.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+        searchResults.innerHTML = '';
+        userBookingForm.style.display = 'none';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        fetch(`/admin/search-users?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(users => {
+                if (users.length === 0) {
+                    searchResults.innerHTML = '<div class="text-muted">No users found</div>';
+                    userBookingForm.style.display = 'none';
+                    return;
+                }
+                
+                let html = '<div class="list-group">';
+                users.forEach(user => {
+                    html += `
+                        <button type="button" class="list-group-item list-group-item-action user-result" 
+                                data-user-id="${user.id}" data-username="${user.username}" 
+                                data-email="${user.email}" data-phone="${user.phone}">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">${user.username}</h6>
+                                <small>${user.phone}</small>
+                            </div>
+                            <p class="mb-1">${user.email}</p>
+                        </button>
+                    `;
+                });
+                html += '</div>';
+                
+                searchResults.innerHTML = html;
+                
+                // Add click handlers
+                document.querySelectorAll('.user-result').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const userId = this.dataset.userId;
+                        const username = this.dataset.username;
+                        const email = this.dataset.email;
+                        const phone = this.dataset.phone;
+                        
+                        selectedUserId.value = userId;
+                        selectedUserInfo.innerHTML = `
+                            <strong>Selected Customer:</strong><br>
+                            <i class="fas fa-user"></i> ${username}<br>
+                            <i class="fas fa-envelope"></i> ${email}<br>
+                            <i class="fas fa-phone"></i> ${phone}
+                        `;
+                        
+                        userBookingForm.style.display = 'block';
+                        searchResults.innerHTML = '';
+                        userSearch.value = username;
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                searchResults.innerHTML = '<div class="text-danger">Search error</div>';
+            });
+    }, 300);
+});
+</script>
+{% endblock %} 
