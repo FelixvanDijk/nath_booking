@@ -49,6 +49,7 @@ class User(db.Model):
     phone = db.Column(db.String(20), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    has_logged_in_before = db.Column(db.Boolean, default=False)  # Track first login
     bookings = db.relationship('Booking', backref='user', lazy=True)
 
 class Booking(db.Model):
@@ -400,7 +401,17 @@ def login():
             session['user_id'] = user.id
             session['username'] = user.username
             session['is_admin'] = False
-            flash('Login successful!', 'success')
+            
+            # Check if this is their first login
+            if not user.has_logged_in_before:
+                # First time login
+                user.has_logged_in_before = True
+                db.session.commit()
+                session['show_welcome_message'] = f'Welcome to S&F Barbers, {user.username}! We\'re excited to have you as a customer.'
+            else:
+                # Returning user
+                session['show_welcome_message'] = f'Welcome back, {user.username}! Ready to book your next appointment?'
+            
             return redirect(url_for('calendar'))
         else:
             flash('Invalid username or password.', 'danger')
@@ -412,6 +423,12 @@ def logout():
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
+
+@app.route('/dismiss-welcome', methods=['POST'])
+def dismiss_welcome():
+    """Clear the welcome message from session"""
+    session.pop('show_welcome_message', None)
+    return '', 204  # Return empty response with "No Content" status
 
 @app.route('/calendar')
 @login_required

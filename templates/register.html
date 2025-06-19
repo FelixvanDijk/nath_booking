@@ -3,66 +3,410 @@
 {% block title %}Register - S&F Barbers, Mold{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6 col-lg-5">
-        <div class="card shadow">
-            <div class="card-header bg-success text-white text-center">
-                <h4><i class="fas fa-user-plus"></i> Register</h4>
+<style>
+    /* Override the container margin to fill the page */
+    .container {
+        max-width: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    main.container {
+        margin-top: 0 !important;
+    }
+    
+    .register-page {
+        min-height: calc(100vh - 120px); /* Account for header/footer */
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 25%, #991b1b 50%, #7f1d1d 75%, #450a0a 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .register-page::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+        animation: float 20s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .register-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 600px;
+        z-index: 1;
+        position: relative;
+    }
+    
+    .register-form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+        max-width: 480px;
+        width: 100%;
+        transform: translateY(0);
+        transition: all 0.3s ease;
+    }
+    
+    .register-form-container:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 35px 70px rgba(0, 0, 0, 0.3);
+    }
+    
+    .register-header {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        color: white;
+        padding: 2.5rem 2rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .register-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: shimmer 3s ease-in-out infinite;
+    }
+    
+    @keyframes shimmer {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(180deg); }
+    }
+    
+    .register-header h2 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        position: relative;
+        z-index: 1;
+    }
+    
+    .register-header .subtitle {
+        margin-top: 0.5rem;
+        font-size: 0.95rem;
+        opacity: 0.9;
+        font-weight: 300;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .barber-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: rgba(255, 255, 255, 0.9);
+        position: relative;
+        z-index: 1;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .register-body {
+        padding: 2.5rem 2rem;
+        background: white;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    
+    .form-control {
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1rem 1rem 1rem 3rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: #f9fafb;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .form-control:focus {
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        background: white;
+        outline: none;
+    }
+    
+    .input-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6b7280;
+        font-size: 1.1rem;
+        z-index: 2;
+        transition: color 0.3s ease;
+    }
+    
+    .form-control:focus + .input-icon {
+        color: #dc2626;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
+        letter-spacing: 0.025em;
+    }
+    
+    .form-text {
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+    }
+    
+    .register-btn {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        border: none;
+        border-radius: 12px;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: white;
+        width: 100%;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .register-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s ease;
+    }
+    
+    .register-btn:hover::before {
+        left: 100%;
+    }
+    
+    .register-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(220, 38, 38, 0.5);
+        background: linear-gradient(135deg, #b91c1c, #991b1b);
+    }
+    
+    .register-btn:active {
+        transform: translateY(0);
+    }
+    
+    .register-footer {
+        padding: 1.5rem 2rem;
+        background: #f9fafb;
+        text-align: center;
+        border-top: 1px solid #e5e7eb;
+    }
+    
+    .login-link {
+        color: #dc2626;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .login-link::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background: #dc2626;
+        transition: width 0.3s ease;
+    }
+    
+    .login-link:hover::after {
+        width: 100%;
+    }
+    
+    .login-link:hover {
+        color: #b91c1c;
+        text-decoration: none;
+    }
+    
+    .footer-text {
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+    
+    .invite-notice {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-top: 1.5rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        max-width: 480px;
+        width: 100%;
+    }
+    
+    .invite-notice h6 {
+        color: #dc2626;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+    
+    .invite-notice p {
+        color: #374151;
+        margin: 0;
+        font-size: 0.95rem;
+    }
+    
+    .special-field {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        border: 2px solid #f59e0b;
+        border-radius: 12px;
+    }
+    
+    .special-field:focus {
+        border-color: #dc2626;
+        background: white;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+    
+    @media (max-width: 768px) {
+        .register-page {
+            padding: 1rem;
+        }
+        
+        .register-form-container {
+            margin: 0 0.5rem;
+        }
+        
+        .register-header {
+            padding: 2rem 1.5rem 1.5rem;
+        }
+        
+        .register-body {
+            padding: 2rem 1.5rem;
+        }
+        
+        .barber-icon {
+            font-size: 2.5rem;
+        }
+        
+        .register-header h2 {
+            font-size: 1.75rem;
+        }
+        
+        .invite-notice {
+            margin: 1rem 0.5rem 0;
+        }
+    }
+</style>
+
+<div class="register-page">
+    <div class="register-content">
+        <div class="register-form-container">
+            <div class="register-header">
+                <div class="barber-icon">
+                    <i class="fas fa-user-plus"></i>
+                </div>
+                <h2>Join Us</h2>
+                <p class="subtitle">S&F Barbers, Mold</p>
             </div>
-            <div class="card-body">
+            
+            <div class="register-body">
                 <form method="POST">
-                    <div class="mb-3">
+                    <div class="form-group">
                         <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="username" name="username" required>
+                            <i class="fas fa-user input-icon"></i>
+                        </div>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="form-group">
                         <label for="email" class="form-label">Email Address</label>
-                        <input type="email" class="form-control" id="email" name="email" 
-                               placeholder="your.email@example.com" required>
+                        <div class="position-relative">
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="your.email@example.com" required>
+                            <i class="fas fa-envelope input-icon"></i>
+                        </div>
                         <div class="form-text">We'll send booking confirmations to this email.</div>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="form-group">
                         <label for="phone" class="form-label">Phone Number</label>
-                        <input type="tel" class="form-control" id="phone" name="phone" 
-                               placeholder="e.g., +1234567890 or 123-456-7890" required>
+                        <div class="position-relative">
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   placeholder="e.g., +1234567890 or 123-456-7890" required>
+                            <i class="fas fa-phone input-icon"></i>
+                        </div>
                         <div class="form-text">For contact and appointment reminders.</div>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="form-group">
                         <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <div class="position-relative">
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <i class="fas fa-lock input-icon"></i>
+                        </div>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="form-group">
                         <label for="invite_password" class="form-label">
-                            Invite Password <i class="fas fa-lock text-warning"></i>
+                            Invite Code <i class="fas fa-key text-warning"></i>
                         </label>
-                        <input type="password" class="form-control" id="invite_password" name="invite_password" 
-                               placeholder="Enter invite code to register" required>
+                        <div class="position-relative">
+                            <input type="password" class="form-control special-field" id="invite_password" name="invite_password" 
+                                   placeholder="Enter invite code to register" required>
+                            <i class="fas fa-key input-icon"></i>
+                        </div>
                         <div class="form-text">You need an invite code to register for this service.</div>
                     </div>
                     
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-user-plus"></i> Register
-                        </button>
-                    </div>
+                    <button type="submit" class="register-btn">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Create Account
+                    </button>
                 </form>
             </div>
-            <div class="card-footer text-center">
-                <small class="text-muted">
-                    Already have an account? <a href="{{ url_for('login') }}">Login here</a>
-                </small>
+            
+            <div class="register-footer">
+                <p class="footer-text mb-0">
+                    Already have an account? 
+                    <a href="{{ url_for('login') }}" class="login-link">Sign in here</a>
+                </p>
             </div>
         </div>
         
-        <div class="mt-4">
-            <div class="alert alert-warning">
-                <h6><i class="fas fa-exclamation-triangle"></i> Registration Requirements:</h6>
-                <p class="mb-0">You need a valid invite code to register. Contact Nath to get one.</p>
-            </div>
+        <div class="invite-notice">
+            <h6><i class="fas fa-exclamation-triangle"></i> Registration Requirements</h6>
+            <p>You need a valid invite code to register. Contact Nath to get one.</p>
         </div>
     </div>
 </div>

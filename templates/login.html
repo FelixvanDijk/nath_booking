@@ -3,36 +3,316 @@
 {% block title %}Login - S&F Barbers, Mold{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white text-center">
-                <h4><i class="fas fa-sign-in-alt"></i> Login</h4>
+<style>
+    /* Override the container margin to fill the page */
+    .container {
+        max-width: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    main.container {
+        margin-top: 0 !important;
+    }
+    
+    .login-page {
+        min-height: calc(100vh - 120px); /* Account for header/footer */
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 25%, #991b1b 50%, #7f1d1d 75%, #450a0a 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .login-page::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+        animation: float 20s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .login-form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+        max-width: 420px;
+        width: 100%;
+        transform: translateY(0);
+        transition: all 0.3s ease;
+    }
+    
+    .login-form-container:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 35px 70px rgba(0, 0, 0, 0.3);
+    }
+    
+    .login-header {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        color: white;
+        padding: 2.5rem 2rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .login-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: shimmer 3s ease-in-out infinite;
+    }
+    
+    @keyframes shimmer {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(180deg); }
+    }
+    
+    .login-header h2 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        position: relative;
+        z-index: 1;
+    }
+    
+    .login-header .subtitle {
+        margin-top: 0.5rem;
+        font-size: 0.95rem;
+        opacity: 0.9;
+        font-weight: 300;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .barber-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: rgba(255, 255, 255, 0.9);
+        position: relative;
+        z-index: 1;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .login-body {
+        padding: 2.5rem 2rem;
+        background: white;
+    }
+    
+    .form-group {
+        margin-bottom: 1.8rem;
+        position: relative;
+    }
+    
+    .form-control {
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1rem 1rem 1rem 3rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: #f9fafb;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .form-control:focus {
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        background: white;
+        outline: none;
+    }
+    
+    .input-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6b7280;
+        font-size: 1.1rem;
+        z-index: 2;
+        transition: color 0.3s ease;
+    }
+    
+    .form-control:focus + .input-icon {
+        color: #dc2626;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
+        letter-spacing: 0.025em;
+    }
+    
+    .login-btn {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        border: none;
+        border-radius: 12px;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: white;
+        width: 100%;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .login-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s ease;
+    }
+    
+    .login-btn:hover::before {
+        left: 100%;
+    }
+    
+    .login-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(220, 38, 38, 0.5);
+        background: linear-gradient(135deg, #b91c1c, #991b1b);
+    }
+    
+    .login-btn:active {
+        transform: translateY(0);
+    }
+    
+    .login-footer {
+        padding: 1.5rem 2rem;
+        background: #f9fafb;
+        text-align: center;
+        border-top: 1px solid #e5e7eb;
+    }
+    
+    .register-link {
+        color: #dc2626;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .register-link::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background: #dc2626;
+        transition: width 0.3s ease;
+    }
+    
+    .register-link:hover::after {
+        width: 100%;
+    }
+    
+    .register-link:hover {
+        color: #b91c1c;
+        text-decoration: none;
+    }
+    
+    .footer-text {
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+    
+    @media (max-width: 768px) {
+        .login-page {
+            padding: 1rem;
+        }
+        
+        .login-form-container {
+            margin: 0 0.5rem;
+        }
+        
+        .login-header {
+            padding: 2rem 1.5rem 1.5rem;
+        }
+        
+        .login-body {
+            padding: 2rem 1.5rem;
+        }
+        
+        .barber-icon {
+            font-size: 2.5rem;
+        }
+        
+        .login-header h2 {
+            font-size: 1.75rem;
+        }
+    }
+</style>
+
+<div class="login-page">
+    <div class="login-form-container">
+        <div class="login-header">
+            <div class="barber-icon">
+                <i class="fas fa-cut"></i>
             </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
+            <h2>Welcome</h2>
+            <p class="subtitle">S&F Barbers, Mold</p>
+        </div>
+        
+        <div class="login-body">
+            <form method="POST">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <div class="position-relative">
                         <input type="text" class="form-control" id="username" name="username" required>
+                        <i class="fas fa-user input-icon"></i>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="position-relative">
                         <input type="password" class="form-control" id="password" name="password" required>
+                        <i class="fas fa-lock input-icon"></i>
                     </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-sign-in-alt"></i> Login
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-center">
-                <small class="text-muted">
-                    Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
-                </small>
-            </div>
+                </div>
+                
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-sign-in-alt me-2"></i>
+                    Sign In
+                </button>
+            </form>
+        </div>
+        
+        <div class="login-footer">
+            <p class="footer-text mb-0">
+                Don't have an account? 
+                <a href="{{ url_for('register') }}" class="register-link">Create one here</a>
+            </p>
         </div>
     </div>
 </div>

@@ -113,6 +113,19 @@
             {% endif %}
         {% endwith %}
 
+        <!-- Welcome Message for First Time/Returning Users -->
+        {% if session.show_welcome_message %}
+            <div class="alert alert-primary alert-dismissible fade show" role="alert" style="background: linear-gradient(135deg, #dc2626, #b91c1c); border: none; color: white; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-cut me-3" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <strong>{{ session.show_welcome_message }}</strong>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" onclick="dismissWelcomeMessage()"></button>
+            </div>
+        {% endif %}
+
         {% block content %}{% endblock %}
     </main>
 
@@ -126,6 +139,17 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function dismissWelcomeMessage() {
+            // Send AJAX request to clear the welcome message from session
+            fetch('/dismiss-welcome', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+        }
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html> 
