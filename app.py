@@ -7,7 +7,22 @@ import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///booking.db'
+
+# Database configuration - PostgreSQL with fallback to SQLite for local development
+def get_database_url():
+    """Get the database URL with proper format conversion for SQLAlchemy"""
+    database_url = os.environ.get('DATABASE_URL')
+    
+    if database_url:
+        # Convert postgres:// to postgresql:// for SQLAlchemy compatibility
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        return database_url
+    else:
+        # Fallback to SQLite for local development
+        return 'sqlite:///booking.db'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Email configuration
@@ -541,10 +556,12 @@ def search_users():
     if len(query) < 2:
         return jsonify([])
     
+    # Use ilike for case-insensitive search (PostgreSQL compatible)
+    search_pattern = f"%{query}%"
     users = User.query.filter(
-        (User.username.contains(query)) |
-        (User.email.contains(query)) |
-        (User.phone.contains(query))
+        (User.username.ilike(search_pattern)) |
+        (User.email.ilike(search_pattern)) |
+        (User.phone.ilike(search_pattern))
     ).limit(10).all()
     
     user_list = []
@@ -653,7 +670,34 @@ def book_guest():
     
     return redirect(url_for('calendar', date=selected_date_str))
 
+def init_database():
+    """Initialize the database with tables and admin user"""
+    try:
+        # Create all tables
+        db.create_all()
+        
+        # Create admin user if it doesn't exist
+        admin_user = User.query.filter_by(username=ADMIN_USERNAME).first()
+        if not admin_user:
+            admin_user = User(
+                username=ADMIN_USERNAME,
+                email='admin@sfbarbers.com',  # Default admin email
+                phone='0000000000',  # Default admin phone
+                password_hash=generate_password_hash(ADMIN_PASSWORD),
+                is_admin=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("Admin user created successfully")
+        else:
+            print("Admin user already exists")
+            
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        # For PostgreSQL, we might need to handle connection issues gracefully
+        pass
+
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
+        init_database()
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000))) 
