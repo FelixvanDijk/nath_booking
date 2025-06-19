@@ -14,11 +14,9 @@ def get_database_url():
     database_url = os.environ.get('DATABASE_URL')
     
     if database_url:
-        # Convert postgres:// to postgresql+psycopg:// for SQLAlchemy with psycopg3
+        # Convert postgres:// to postgresql:// for SQLAlchemy compatibility
         if database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
-        elif database_url.startswith('postgresql://'):
-            database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
         return database_url
     else:
         # Fallback to SQLite for local development
