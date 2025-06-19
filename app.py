@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta, date
+from sqlalchemy import text
 import os
 
 app = Flask(__name__)
@@ -971,6 +972,38 @@ def init_database():
         # Create all tables
         db.create_all()
         
+        # Handle database migrations for missing columns
+        database_url = get_database_url()
+        if database_url.startswith('postgresql://'):
+            # PostgreSQL database - check for missing columns and add them
+            print("Checking PostgreSQL database for missing columns...")
+            
+            # Check for is_paid column in booking table
+            try:
+                result = db.session.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='booking' AND column_name='is_paid'"))
+                if not result.fetchone():
+                    print("Adding is_paid column to booking table...")
+                    db.session.execute(text("ALTER TABLE booking ADD COLUMN is_paid BOOLEAN DEFAULT FALSE"))
+                    db.session.commit()
+                    print("✓ Added is_paid column")
+            except Exception as e:
+                print(f"Error checking/adding is_paid column: {e}")
+                db.session.rollback()
+            
+            # Check for has_logged_in_before column in user table
+            try:
+                result = db.session.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='user' AND column_name='has_logged_in_before'"))
+                if not result.fetchone():
+                    print("Adding has_logged_in_before column to user table...")
+                    db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN has_logged_in_before BOOLEAN DEFAULT FALSE"))
+                    # Update existing users to have logged in before (so they get "welcome back" messages)
+                    db.session.execute(text("UPDATE \"user\" SET has_logged_in_before = TRUE WHERE has_logged_in_before IS NULL"))
+                    db.session.commit()
+                    print("✓ Added has_logged_in_before column")
+            except Exception as e:
+                print(f"Error checking/adding has_logged_in_before column: {e}")
+                db.session.rollback()
+        
         # Create admin user if it doesn't exist
         admin_user = User.query.filter_by(username=ADMIN_USERNAME).first()
         if not admin_user:
@@ -979,7 +1012,8 @@ def init_database():
                 email='admin@sfbarbers.com',  # Default admin email
                 phone='0000000000',  # Default admin phone
                 password_hash=generate_password_hash(ADMIN_PASSWORD),
-                is_admin=True
+                is_admin=True,
+                has_logged_in_before=True  # Admin has "logged in before"
             )
             db.session.add(admin_user)
             db.session.commit()
