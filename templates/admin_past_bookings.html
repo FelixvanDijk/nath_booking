@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Past Bookings - S&F Barbers, Mold{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2><i class="fas fa-history"></i> Past Bookings</h2>
+                <p class="text-muted">Completed appointments awaiting payment confirmation</p>
+            </div>
+            <div>
+                <a href="{{ url_for('admin') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-calendar"></i> Current Bookings
+                </a>
+                <a href="{{ url_for('calendar') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> New Booking
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if bookings_by_date %}
+    {% for date_str, date_bookings in bookings_by_date.items() %}
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-secondary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-day"></i> 
+                        {{ date_bookings[0].date.strftime('%A, %B %d, %Y') }}
+                    </h5>
+                    <span class="badge bg-light text-dark">{{ date_bookings|length }} appointment(s)</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Customer</th>
+                                <th>Contact</th>
+                                <th>Payment Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for booking in date_bookings %}
+                                <tr class="{{ 'table-warning' if booking.is_guest_booking else '' }}">
+                                    <td>
+                                        <strong><i class="fas fa-clock"></i> {{ booking.time_slot }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if booking.is_guest_booking %}
+                                            <div>
+                                                <i class="fas fa-user-friends"></i> {{ booking.guest_name }}
+                                                <span class="badge bg-secondary ms-1">Guest</span>
+                                                {% if booking.admin_note %}
+                                                    <br><small class="text-muted">Note: {{ booking.admin_note }}</small>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <div>
+                                                <i class="fas fa-user"></i> {{ booking.user.username }}
+                                                <span class="badge bg-primary ms-1">Registered</span>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if booking.is_guest_booking %}
+                                            {% if booking.guest_phone %}
+                                                <div><i class="fas fa-phone"></i> {{ booking.guest_phone }}</div>
+                                            {% endif %}
+                                            {% if booking.guest_email %}
+                                                <div><i class="fas fa-envelope"></i> {{ booking.guest_email }}</div>
+                                            {% endif %}
+                                            {% if not booking.guest_phone and not booking.guest_email %}
+                                                <small class="text-muted">No contact info</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <div><i class="fas fa-phone"></i> {{ booking.user.phone }}</div>
+                                            <div><i class="fas fa-envelope"></i> {{ booking.user.email }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock"></i> Awaiting Payment
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('mark_booking_paid', booking_id=booking.id) }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-success" 
+                                                    onclick="return confirm('Mark this booking as paid? This will remove it from this list.')">
+                                                <i class="fas fa-check"></i> Mark Paid
+                                            </button>
+                                        </form>
+                                        
+                                        <!-- Payment Reminder Button -->
+                                        {% if (booking.is_guest_booking and booking.guest_email) or (not booking.is_guest_booking) %}
+                                            <form method="POST" action="{{ url_for('send_payment_reminder', booking_id=booking.id) }}" style="display: inline;" class="ms-1">
+                                                <button type="submit" class="btn btn-sm btn-outline-warning" 
+                                                        onclick="return confirm('Send payment reminder email to {{ booking.guest_name if booking.is_guest_booking else booking.user.username }}?')">
+                                                    <i class="fas fa-envelope"></i> Remind
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <small class="text-muted ms-2">No email</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <h4 class="text-muted">All Caught Up!</h4>
+                    <p class="text-muted">No past bookings awaiting payment confirmation.</p>
+                    <div class="mt-4">
+                        <a href="{{ url_for('admin') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-calendar"></i> View Current Bookings
+                        </a>
+                        <a href="{{ url_for('calendar') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-plus"></i> New Booking
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-info shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-info-circle"></i> Payment Tracking</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-clock"></i> How it Works:</h6>
+                        <ul class="list-unstyled">
+                            <li>• Past appointments appear here automatically</li>
+                            <li>• Mark as "Paid" when customer pays</li>
+                            <li>• Paid bookings are removed from this list</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-lightbulb"></i> Tips:</h6>
+                        <ul class="list-unstyled">
+                            <li>• Check this daily for payment tracking</li>
+                            <li>• Guest bookings are highlighted in yellow</li>
+                            <li>• Contact info is shown for follow-ups</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -61,6 +61,7 @@ class Booking(db.Model):
     guest_email = db.Column(db.String(120))  # For non-registered customers
     admin_note = db.Column(db.String(200))  # Admin's private note
     is_guest_booking = db.Column(db.Boolean, default=False)
+    is_paid = db.Column(db.Boolean, default=False)  # Track payment status
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ScheduleOverride(db.Model):
@@ -95,8 +96,19 @@ def get_available_slots(selected_date=None):
         closing_hour = 16
     
     slots = []
+    current_time = datetime.now()
+    
     for hour in range(opening_hour, closing_hour):
-        slots.append(f"{hour:02d}:00")
+        time_slot = f"{hour:02d}:00"
+        
+        # If this is today, only include slots that haven't passed yet
+        if selected_date == date.today():
+            slot_time = datetime.combine(selected_date, datetime.strptime(time_slot, '%H:%M').time())
+            if slot_time <= current_time:
+                continue  # Skip past time slots
+        
+        slots.append(time_slot)
+    
     return slots
 
 def get_conflicting_bookings(selected_date, is_open, opening_time=None, closing_time=None):
@@ -290,6 +302,38 @@ S&F Barbers, Mold
         print(f"Failed to send email: {e}")
         return False
 
+def send_payment_reminder_email(user_email, username, booking_date, time_slot):
+    """Send payment reminder email for completed appointments"""
+    try:
+        subject = "Payment Reminder - S&F Barbers, Mold"
+        body = f"""
+Dear {username},
+
+This is a friendly reminder that your recent appointment at S&F Barbers in Mold is awaiting payment.
+
+📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
+⏰ Time: {time_slot}
+
+Please settle your payment at your earliest convenience. You can pay:
+• In person during our business hours (9 AM - 4 PM)
+• By contacting us directly
+
+If you have already paid, please disregard this message.
+
+Thank you for choosing S&F Barbers!
+
+Best regards,
+Nath
+S&F Barbers, Mold
+        """
+        
+        msg = Message(subject=subject, recipients=[user_email], body=body)
+        mail.send(msg)
+        return True
+    except Exception as e:
+        print(f"Failed to send payment reminder email: {e}")
+        return False
+
 # Routes
 @app.route('/')
 def index():
@@ -422,6 +466,14 @@ def book():
         flash('Invalid date format.', 'danger')
         return redirect(url_for('calendar'))
     
+    # Check if trying to book a past time slot for today
+    if selected_date == date.today():
+        current_time = datetime.now()
+        slot_time = datetime.combine(selected_date, datetime.strptime(time_slot, '%H:%M').time())
+        if slot_time <= current_time:
+            flash('Cannot book a time slot that has already passed.', 'warning')
+            return redirect(url_for('calendar', date=selected_date_str))
+    
     # Check if slot is available
     existing_booking = Booking.query.filter_by(date=selected_date, time_slot=time_slot).first()
     if existing_booking:
@@ -506,8 +558,18 @@ def cancel():
 @app.route('/admin')
 @admin_required
 def admin():
-    # Get all bookings with user information (including guest bookings)
-    bookings = db.session.query(Booking).outerjoin(User).order_by(Booking.date, Booking.time_slot).all()
+    # Get current and upcoming bookings only (not past bookings)
+    today = date.today()
+    now = datetime.now()
+    
+    # For today's bookings, only show those that haven't passed yet
+    bookings = db.session.query(Booking).outerjoin(User).filter(
+        (Booking.date > today) |  # Future dates
+        (
+            (Booking.date == today) &  # Today's bookings
+            (Booking.time_slot >= now.strftime('%H:%M'))  # That haven't passed yet
+        )
+    ).order_by(Booking.date, Booking.time_slot).all()
     
     # Group bookings by date
     bookings_by_date = {}
@@ -809,6 +871,82 @@ def book_guest():
         flash(f'Guest booking created for {guest_name} on {selected_date} at {time_slot}.', 'success')
     
     return redirect(url_for('calendar', date=selected_date_str))
+
+@app.route('/admin/past-bookings')
+@admin_required
+def admin_past_bookings():
+    # Get past bookings that haven't been marked as paid
+    today = date.today()
+    now = datetime.now()
+    
+    # Include bookings from past dates OR today's bookings that have already passed
+    past_bookings = db.session.query(Booking).outerjoin(User).filter(
+        (
+            (Booking.date < today) |  # Past dates
+            (
+                (Booking.date == today) &  # Today's bookings
+                (Booking.time_slot < now.strftime('%H:%M'))  # That have already passed
+            )
+        ) &
+        (Booking.is_paid == False)  # And haven't been marked as paid
+    ).order_by(Booking.date.desc(), Booking.time_slot).all()
+    
+    # Group bookings by date
+    bookings_by_date = {}
+    for booking in past_bookings:
+        date_str = booking.date.strftime('%Y-%m-%d')
+        if date_str not in bookings_by_date:
+            bookings_by_date[date_str] = []
+        bookings_by_date[date_str].append(booking)
+    
+    return render_template('admin_past_bookings.html', bookings_by_date=bookings_by_date)
+
+@app.route('/admin/mark-paid/<int:booking_id>', methods=['POST'])
+@admin_required
+def mark_booking_paid(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    booking.is_paid = True
+    db.session.commit()
+    
+    # Get customer name for flash message
+    if booking.is_guest_booking:
+        customer_name = booking.guest_name
+    else:
+        user = User.query.get(booking.user_id)
+        customer_name = user.username if user else 'Unknown User'
+    
+    flash(f'Booking for {customer_name} on {booking.date.strftime("%B %d")} at {booking.time_slot} marked as paid.', 'success')
+    return redirect(url_for('admin_past_bookings'))
+
+@app.route('/admin/send-payment-reminder/<int:booking_id>', methods=['POST'])
+@admin_required
+def send_payment_reminder(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    
+    # Get customer details
+    if booking.is_guest_booking:
+        if not booking.guest_email:
+            flash('No email address available for this guest booking.', 'warning')
+            return redirect(url_for('admin_past_bookings'))
+        
+        customer_name = booking.guest_name
+        customer_email = booking.guest_email
+    else:
+        user = User.query.get(booking.user_id)
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('admin_past_bookings'))
+        
+        customer_name = user.username
+        customer_email = user.email
+    
+    # Send payment reminder email
+    if send_payment_reminder_email(customer_email, customer_name, booking.date, booking.time_slot):
+        flash(f'Payment reminder sent to {customer_name} ({customer_email}).', 'success')
+    else:
+        flash(f'Failed to send payment reminder to {customer_name}.', 'danger')
+    
+    return redirect(url_for('admin_past_bookings'))
 
 def init_database():
     """Initialize the database with tables and admin user"""
