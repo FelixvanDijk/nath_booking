@@ -14,9 +14,11 @@ def get_database_url():
     database_url = os.environ.get('DATABASE_URL')
     
     if database_url:
-        # Convert postgres:// to postgresql:// for SQLAlchemy compatibility
+        # Convert postgres:// to postgresql+psycopg:// for SQLAlchemy with psycopg3
         if database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+            database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
+        elif database_url.startswith('postgresql://'):
+            database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
         return database_url
     else:
         # Fallback to SQLite for local development
@@ -99,6 +101,71 @@ def get_available_slots(selected_date=None):
         slots.append(f"{hour:02d}:00")
     return slots
 
+def get_conflicting_bookings(selected_date, is_open, opening_time=None, closing_time=None):
+    """Get bookings that would conflict with new schedule settings"""
+    conflicting_bookings = []
+    
+    # Get all bookings for this date
+    bookings = Booking.query.filter_by(date=selected_date).all()
+    
+    if not is_open:
+        # If closing the day, all bookings conflict
+        conflicting_bookings = bookings
+    else:
+        # If changing hours, check which bookings fall outside new hours
+        if opening_time and closing_time:
+            opening_hour = int(opening_time.split(':')[0])
+            closing_hour = int(closing_time.split(':')[0])
+            
+            for booking in bookings:
+                booking_hour = int(booking.time_slot.split(':')[0])
+                if booking_hour < opening_hour or booking_hour >= closing_hour:
+                    conflicting_bookings.append(booking)
+    
+    return conflicting_bookings
+
+def cancel_conflicting_bookings(conflicting_bookings):
+    """Cancel bookings and send notification emails"""
+    cancelled_count = 0
+    email_failures = 0
+    
+    for booking in conflicting_bookings:
+        # Send cancellation email
+        email_sent = False
+        if booking.is_guest_booking:
+            # For guest bookings, use guest email if available
+            if booking.guest_email:
+                email_sent = send_booking_email(
+                    booking.guest_email, 
+                    booking.guest_name, 
+                    booking.date, 
+                    booking.time_slot, 
+                    is_confirmation=False,
+                    is_schedule_cancellation=True
+                )
+        else:
+            # For regular user bookings, get user and send email
+            user = User.query.get(booking.user_id)
+            if user:
+                email_sent = send_booking_email(
+                    user.email, 
+                    user.username, 
+                    booking.date, 
+                    booking.time_slot, 
+                    is_confirmation=False,
+                    is_schedule_cancellation=True
+                )
+        
+        if not email_sent:
+            email_failures += 1
+        
+        # Delete the booking
+        db.session.delete(booking)
+        cancelled_count += 1
+    
+    db.session.commit()
+    return cancelled_count, email_failures
+
 def get_schedule_info(selected_date):
     """Get schedule information for a specific date"""
     override = ScheduleOverride.query.filter_by(date=selected_date).first()
@@ -156,7 +223,7 @@ def admin_required(f):
     return decorated_function
 
 # Email functions
-def send_booking_email(user_email, username, booking_date, time_slot, is_confirmation=True):
+def send_booking_email(user_email, username, booking_date, time_slot, is_confirmation=True, is_schedule_cancellation=False):
     """Send email notification for booking confirmation or cancellation"""
     try:
         if is_confirmation:
@@ -181,7 +248,27 @@ S&F Barbers, Mold
             """
         else:
             subject = "Booking Cancellation - S&F Barbers, Mold"
-            body = f"""
+            if is_schedule_cancellation:
+                body = f"""
+Dear {username},
+
+We regret to inform you that your appointment at S&F Barbers in Mold has been cancelled due to a schedule change.
+
+📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
+⏰ Time: {time_slot}
+
+This cancellation was necessary due to updated business hours or closure on this date. We sincerely apologize for any inconvenience this may cause.
+
+Please contact us or book a new appointment through our online system for an alternative time that works for you.
+
+Thank you for your understanding.
+
+Best regards,
+Nath
+S&F Barbers, Mold
+                """
+            else:
+                body = f"""
 Dear {username},
 
 Your appointment at S&F Barbers in Mold has been cancelled.
@@ -196,7 +283,7 @@ Thank you for your understanding.
 Best regards,
 Nath
 S&F Barbers, Mold
-            """
+                """
         
         msg = Message(subject=subject, recipients=[user_email], body=body)
         mail.send(msg)
@@ -481,6 +568,7 @@ def add_schedule_override():
     opening_time = request.form.get('opening_time', '09:00')
     closing_time = request.form.get('closing_time', '16:00')
     note = request.form.get('note', '')
+    confirm = request.form.get('confirm') == 'true'  # Check if this is a confirmation
     
     try:
         selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
@@ -488,7 +576,55 @@ def add_schedule_override():
         flash('Invalid date format.', 'danger')
         return redirect(url_for('admin_schedule'))
     
-    # Check if override already exists
+    # Check for conflicting bookings
+    conflicting_bookings = get_conflicting_bookings(selected_date, is_open, opening_time, closing_time)
+    
+    if conflicting_bookings and not confirm:
+        # Store the form data in session for confirmation
+        session['pending_schedule_change'] = {
+            'date': selected_date_str,
+            'is_open': is_open,
+            'opening_time': opening_time,
+            'closing_time': closing_time,
+            'note': note
+        }
+        
+        # Prepare booking details for confirmation
+        booking_details = []
+        for booking in conflicting_bookings:
+            if booking.is_guest_booking:
+                booking_details.append({
+                    'name': booking.guest_name,
+                    'time': booking.time_slot,
+                    'type': 'Guest'
+                })
+            else:
+                user = User.query.get(booking.user_id)
+                booking_details.append({
+                    'name': user.username if user else 'Unknown User',
+                    'time': booking.time_slot,
+                    'type': 'Registered User'
+                })
+        
+        return render_template('admin_schedule_confirm.html', 
+                             selected_date=selected_date,
+                             booking_details=booking_details,
+                             is_open=is_open,
+                             opening_time=opening_time,
+                             closing_time=closing_time,
+                             note=note)
+    
+    # If confirmed or no conflicts, proceed with the change
+    if conflicting_bookings and confirm:
+        # Cancel conflicting bookings
+        cancelled_count, email_failures = cancel_conflicting_bookings(conflicting_bookings)
+        
+        if email_failures > 0:
+            flash(f'Schedule updated. {cancelled_count} bookings cancelled ({email_failures} email notifications failed).', 'warning')
+        else:
+            flash(f'Schedule updated. {cancelled_count} bookings cancelled and notification emails sent.', 'success')
+    
+    # Apply the schedule change
     existing = ScheduleOverride.query.filter_by(date=selected_date).first()
     if existing:
         # Update existing override
@@ -496,7 +632,8 @@ def add_schedule_override():
         existing.opening_time = opening_time if is_open else '09:00'
         existing.closing_time = closing_time if is_open else '16:00'
         existing.note = note
-        flash(f'Schedule updated for {selected_date.strftime("%B %d, %Y")}', 'success')
+        if not conflicting_bookings:
+            flash(f'Schedule updated for {selected_date.strftime("%B %d, %Y")}', 'success')
     else:
         # Create new override
         override = ScheduleOverride(
@@ -507,9 +644,14 @@ def add_schedule_override():
             note=note
         )
         db.session.add(override)
-        flash(f'Schedule override added for {selected_date.strftime("%B %d, %Y")}', 'success')
+        if not conflicting_bookings:
+            flash(f'Schedule override added for {selected_date.strftime("%B %d, %Y")}', 'success')
     
     db.session.commit()
+    
+    # Clear pending change from session
+    session.pop('pending_schedule_change', None)
+    
     return redirect(url_for('admin_schedule'))
 
 @app.route('/admin/schedule/delete/<int:override_id>', methods=['POST'])

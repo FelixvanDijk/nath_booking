@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Schedule Change - S&F Barbers, Mold{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h4><i class="fas fa-exclamation-triangle"></i> Schedule Change Confirmation</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-calendar-times"></i> Booking Conflicts Detected!</h5>
+                    <p class="mb-0">
+                        Your schedule change for <strong>{{ selected_date.strftime('%A, %B %d, %Y') }}</strong> 
+                        will affect existing bookings.
+                    </p>
+                </div>
+
+                <div class="mb-4">
+                    <h6><i class="fas fa-cog"></i> Proposed Changes:</h6>
+                    <ul class="list-unstyled">
+                        {% if not is_open %}
+                            <li><strong>Status:</strong> <span class="text-danger">Closed</span></li>
+                            <li><strong>Reason:</strong> {{ note or 'No reason specified' }}</li>
+                        {% else %}
+                            <li><strong>Status:</strong> <span class="text-success">Open</span></li>
+                            <li><strong>Hours:</strong> {{ opening_time }} - {{ closing_time }}</li>
+                            {% if note %}
+                                <li><strong>Note:</strong> {{ note }}</li>
+                            {% endif %}
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <div class="mb-4">
+                    <h6><i class="fas fa-users"></i> Affected Bookings:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Customer</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for booking in booking_details %}
+                                    <tr>
+                                        <td><strong>{{ booking.time }}</strong></td>
+                                        <td>{{ booking.name }}</td>
+                                        <td>
+                                            {% if booking.type == 'Guest' %}
+                                                <span class="badge bg-secondary">{{ booking.type }}</span>
+                                            {% else %}
+                                                <span class="badge bg-primary">{{ booking.type }}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>What will happen:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>All {{ booking_details|length }} booking(s) listed above will be <strong>cancelled</strong></li>
+                        <li>Customers will receive <strong>automatic email notifications</strong> about the cancellation</li>
+                        <li>The schedule change will be applied immediately</li>
+                    </ul>
+                </div>
+
+                <div class="d-flex gap-3 justify-content-end">
+                    <a href="{{ url_for('admin_schedule') }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                    
+                    <form method="POST" action="{{ url_for('add_schedule_override') }}" style="display: inline;">
+                        <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                        <input type="hidden" name="is_open" value="{{ 'on' if is_open else '' }}">
+                        <input type="hidden" name="opening_time" value="{{ opening_time }}">
+                        <input type="hidden" name="closing_time" value="{{ closing_time }}">
+                        <input type="hidden" name="note" value="{{ note }}">
+                        <input type="hidden" name="confirm" value="true">
+                        
+                        <button type="submit" class="btn btn-warning" data-booking-count="{{ booking_details|length }}">
+                            <i class="fas fa-check"></i> Confirm & Cancel Bookings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add confirmation dialog for extra safety
+document.querySelector('form button[type="submit"]').addEventListener('click', function(e) {
+    const bookingCount = this.getAttribute('data-booking-count');
+    const message = 'Are you absolutely sure you want to cancel ' + bookingCount + ' booking(s)? This action cannot be undone.';
+    
+    if (!confirm(message)) {
+        e.preventDefault();
+    }
+});
+</script>
+{% endblock %} 

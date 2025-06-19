@@ -27,6 +27,21 @@
 - Handles users, bookings, and schedule overrides
 - Prevents duplicate data
 
+### 6. **NEW: Booking Conflict Management** 🆕
+- **Smart Schedule Changes**: When admin closes a day or changes hours, system detects conflicting bookings
+- **Confirmation Dialog**: Shows admin exactly which customers will be affected before making changes
+- **Automatic Cancellations**: If confirmed, automatically cancels conflicting bookings
+- **Email Notifications**: Sends personalized cancellation emails explaining the schedule change
+- **Safety Features**: Double confirmation dialog and detailed conflict preview
+
+#### How Booking Conflict Management Works:
+1. **Admin tries to close a day or change hours**
+2. **System checks for existing bookings** that would conflict
+3. **If conflicts found**: Shows confirmation page with affected customers
+4. **Admin can review** exactly who will be impacted (John at 2:00 PM, Sarah at 3:00 PM, etc.)
+5. **If admin confirms**: Automatically cancels bookings and sends emails
+6. **If admin cancels**: Returns to schedule without making changes
+
 ## Environment Setup
 
 ### On Render:
@@ -47,7 +62,7 @@ All existing models work identically with PostgreSQL:
 
 ## What Stays the Same
 - All routes and functionality work exactly the same
-- Email notifications unchanged
+- Email notifications unchanged (except new schedule cancellation emails)
 - Admin panel features unchanged
 - User interface completely unchanged
 - Session handling unchanged
@@ -67,9 +82,11 @@ All existing models work identically with PostgreSQL:
    - Admin login still works (admin/admin123)
    - New user registration works
    - Booking system functions normally
+   - **NEW**: Test schedule conflict management in admin panel
 
 ## Key Benefits
 - **Persistent data** - No more data loss when Render service sleeps
 - **Better performance** - PostgreSQL is more efficient for concurrent users
 - **Scalability** - Can handle more users and bookings
-- **Production-ready** - Professional database setup 
+- **Production-ready** - Professional database setup
+- **Smart conflict handling** - Prevents accidental booking cancellations 
