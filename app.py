@@ -38,9 +38,9 @@ db = SQLAlchemy(app)
 mail = Mail(app)
 
 # Configuration
-INVITE_PASSWORD = "cut123"
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"
+INVITE_PASSWORD = "cut123"  # Default fallback
+ADMIN_USERNAME = "nath"
+ADMIN_PASSWORD = "RobertsNathanSnF"
 
 # Database Models
 class User(db.Model):
@@ -75,13 +75,98 @@ class ScheduleOverride(db.Model):
     note = db.Column(db.String(200))  # Optional note like "Holiday", "Early close", etc.
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class SystemSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    setting_name = db.Column(db.String(50), unique=True, nullable=False)
+    setting_value = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class DefaultSchedule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    day_of_week = db.Column(db.Integer, unique=True, nullable=False)  # 0=Monday, 1=Tuesday, ..., 6=Sunday
+    is_open = db.Column(db.Boolean, default=True)  # False means closed by default
+    opening_time = db.Column(db.String(5), default='09:00')  # e.g., "09:00"
+    closing_time = db.Column(db.String(5), default='16:00')  # e.g., "16:00"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Helper functions
+def get_current_invite_password():
+    """Get the current invite password from database or fallback to default"""
+    setting = SystemSettings.query.filter_by(setting_name='invite_password').first()
+    if setting:
+        return setting.setting_value
+    return INVITE_PASSWORD
+
+def update_invite_password(new_password):
+    """Update the invite password in the database"""
+    setting = SystemSettings.query.filter_by(setting_name='invite_password').first()
+    if setting:
+        setting.setting_value = new_password
+        setting.updated_at = datetime.utcnow()
+    else:
+        setting = SystemSettings(setting_name='invite_password', setting_value=new_password)
+        db.session.add(setting)
+    db.session.commit()
+
+def get_default_schedule_for_day(day_of_week):
+    """Get default schedule for a specific day of week (0=Monday, 6=Sunday)"""
+    default = DefaultSchedule.query.filter_by(day_of_week=day_of_week).first()
+    if default:
+        return {
+            'is_open': default.is_open,
+            'opening_time': default.opening_time,
+            'closing_time': default.closing_time
+        }
+    else:
+        # Return standard default (9 AM to 4 PM, open)
+        return {
+            'is_open': True,
+            'opening_time': '09:00',
+            'closing_time': '16:00'
+        }
+
+def get_all_default_schedules():
+    """Get all default schedules organized by day of week"""
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    schedules = {}
+    
+    for i, day_name in enumerate(days):
+        default = get_default_schedule_for_day(i)
+        schedules[i] = {
+            'day_name': day_name,
+            'is_open': default['is_open'],
+            'opening_time': default['opening_time'],
+            'closing_time': default['closing_time']
+        }
+    
+    return schedules
+
+def update_default_schedule(day_of_week, is_open, opening_time='09:00', closing_time='16:00'):
+    """Update or create default schedule for a specific day"""
+    default = DefaultSchedule.query.filter_by(day_of_week=day_of_week).first()
+    if default:
+        default.is_open = is_open
+        default.opening_time = opening_time if is_open else '09:00'
+        default.closing_time = closing_time if is_open else '16:00'
+        default.updated_at = datetime.utcnow()
+    else:
+        default = DefaultSchedule(
+            day_of_week=day_of_week,
+            is_open=is_open,
+            opening_time=opening_time if is_open else '09:00',
+            closing_time=closing_time if is_open else '16:00'
+        )
+        db.session.add(default)
+    db.session.commit()
+
 def get_available_slots(selected_date=None):
     """Generate time slots based on schedule overrides or default hours"""
     if selected_date is None:
         selected_date = date.today()
     
-    # Check for schedule override
+    # Check for schedule override first
     override = ScheduleOverride.query.filter_by(date=selected_date).first()
     
     if override:
@@ -89,13 +174,21 @@ def get_available_slots(selected_date=None):
             # Business is closed this day
             return []
         
-        # Use custom hours
+        # Use custom hours from override
         opening_hour = int(override.opening_time.split(':')[0])
         closing_hour = int(override.closing_time.split(':')[0])
     else:
-        # Use default hours (9 AM to 4 PM)
-        opening_hour = 9
-        closing_hour = 16
+        # Use default schedule for this day of week
+        day_of_week = selected_date.weekday()  # 0=Monday, 6=Sunday
+        default_schedule = get_default_schedule_for_day(day_of_week)
+        
+        if not default_schedule['is_open']:
+            # Business is closed by default on this day
+            return []
+        
+        # Use default hours for this day
+        opening_hour = int(default_schedule['opening_time'].split(':')[0])
+        closing_hour = int(default_schedule['closing_time'].split(':')[0])
     
     slots = []
     current_time = datetime.now()
@@ -198,12 +291,24 @@ def get_schedule_info(selected_date):
                 'is_custom': True
             }
     else:
-        return {
-            'is_open': True,
-            'hours': '09:00 - 16:00',
-            'note': None,
-            'is_custom': False
-        }
+        # Use default schedule for this day of week
+        day_of_week = selected_date.weekday()  # 0=Monday, 6=Sunday
+        default_schedule = get_default_schedule_for_day(day_of_week)
+        
+        if not default_schedule['is_open']:
+            return {
+                'is_open': False,
+                'hours': None,
+                'note': 'Closed (Default Schedule)',
+                'is_custom': False
+            }
+        else:
+            return {
+                'is_open': True,
+                'hours': f"{default_schedule['opening_time']} - {default_schedule['closing_time']}",
+                'note': 'Default Schedule',
+                'is_custom': False
+            }
 
 def get_booked_slots(selected_date):
     """Get all booked slots for a specific date"""
@@ -239,11 +344,11 @@ def send_booking_email(user_email, username, booking_date, time_slot, is_confirm
     """Send email notification for booking confirmation or cancellation"""
     try:
         if is_confirmation:
-            subject = "Booking Confirmation - S&F Barbers, Mold"
+            subject = "Booking Confirmation - SnF Barbers, Mold"
             body = f"""
 Dear {username},
 
-Your appointment at S&F Barbers in Mold has been confirmed!
+Your appointment at SnF Barbers in Mold has been confirmed!
 
 📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
 ⏰ Time: {time_slot}
@@ -252,19 +357,19 @@ Please arrive 5 minutes early for your appointment with Nath.
 
 If you need to cancel or reschedule, please log into your account at least 2 hours before your appointment time.
 
-Thank you for choosing S&F Barbers!
+Thank you for choosing SnF Barbers!
 
 Best regards,
 Nath
-S&F Barbers, Mold
+SnF Barbers, Mold
             """
         else:
-            subject = "Booking Cancellation - S&F Barbers, Mold"
+            subject = "Booking Cancellation - SnF Barbers, Mold"
             if is_schedule_cancellation:
                 body = f"""
 Dear {username},
 
-We regret to inform you that your appointment at S&F Barbers in Mold has been cancelled due to a schedule change.
+We regret to inform you that your appointment at SnF Barbers in Mold has been cancelled due to a schedule change.
 
 📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
 ⏰ Time: {time_slot}
@@ -277,13 +382,13 @@ Thank you for your understanding.
 
 Best regards,
 Nath
-S&F Barbers, Mold
+SnF Barbers, Mold
                 """
             else:
                 body = f"""
 Dear {username},
 
-Your appointment at S&F Barbers in Mold has been cancelled.
+Your appointment at SnF Barbers in Mold has been cancelled.
 
 📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
 ⏰ Time: {time_slot}
@@ -294,7 +399,7 @@ Thank you for your understanding.
 
 Best regards,
 Nath
-S&F Barbers, Mold
+SnF Barbers, Mold
                 """
         
         msg = Message(subject=subject, recipients=[user_email], body=body)
@@ -307,11 +412,11 @@ S&F Barbers, Mold
 def send_payment_reminder_email(user_email, username, booking_date, time_slot):
     """Send payment reminder email for completed appointments"""
     try:
-        subject = "Payment Reminder - S&F Barbers, Mold"
+        subject = "Payment Reminder - SnF Barbers, Mold"
         body = f"""
 Dear {username},
 
-This is a friendly reminder that your recent appointment at S&F Barbers in Mold is awaiting payment.
+This is a friendly reminder that your recent appointment at SnF Barbers in Mold is awaiting payment.
 
 📅 Date: {booking_date.strftime('%A, %B %d, %Y')}
 ⏰ Time: {time_slot}
@@ -322,11 +427,11 @@ Please settle your payment at your earliest convenience. You can pay:
 
 If you have already paid, please disregard this message.
 
-Thank you for choosing S&F Barbers!
+Thank you for choosing SnF Barbers!
 
 Best regards,
 Nath
-S&F Barbers, Mold
+SnF Barbers, Mold
         """
         
         msg = Message(subject=subject, recipients=[user_email], body=body)
@@ -353,7 +458,7 @@ def register():
         invite_password = request.form['invite_password']
         
         # Check invite password
-        if invite_password != INVITE_PASSWORD:
+        if invite_password != get_current_invite_password():
             flash('Invalid invite password.', 'danger')
             return render_template('register.html')
         
@@ -388,15 +493,15 @@ def login():
         password = request.form['password']
         
         # Check for admin login
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        if username.lower() == ADMIN_USERNAME.lower() and password == ADMIN_PASSWORD:
             session['user_id'] = 'admin'
             session['username'] = 'Admin'
             session['is_admin'] = True
             flash('Admin login successful!', 'success')
             return redirect(url_for('admin'))
         
-        # Check for regular user
-        user = User.query.filter_by(username=username).first()
+        # Check for regular user (case-insensitive username)
+        user = User.query.filter(User.username.ilike(username)).first()
         
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
@@ -408,7 +513,7 @@ def login():
                 # First time login
                 user.has_logged_in_before = True
                 db.session.commit()
-                session['show_welcome_message'] = f'Welcome to S&F Barbers, {user.username}! We\'re excited to have you as a customer.'
+                session['show_welcome_message'] = f'Welcome to SnF Barbers, {user.username}! We\'re excited to have you as a customer.'
             else:
                 # Returning user
                 session['show_welcome_message'] = f'Welcome back, {user.username}! Ready to book your next appointment?'
@@ -441,9 +546,9 @@ def calendar():
     except ValueError:
         selected_date = date.today()
     
-    # Generate next 14 days for date picker
+    # Generate next 30 days for date picker (extended from 14)
     dates = []
-    for i in range(14):
+    for i in range(30):
         current_date = date.today() + timedelta(days=i)
         dates.append(current_date)
     
@@ -466,7 +571,8 @@ def calendar():
                          available_slots=available_slots,
                          booked_slots=booked_slots,
                          schedule_info=schedule_info,
-                         user_bookings=user_bookings)
+                         user_bookings=user_bookings,
+                         today=date.today())
 
 @app.route('/book', methods=['POST'])
 @login_required
@@ -966,6 +1072,78 @@ def send_payment_reminder(booking_id):
     
     return redirect(url_for('admin_past_bookings'))
 
+@app.route('/admin/settings')
+@admin_required
+def admin_settings():
+    """Admin settings page"""
+    current_invite_password = get_current_invite_password()
+    return render_template('admin_settings.html', current_invite_password=current_invite_password)
+
+@app.route('/admin/settings/update-invite-password', methods=['POST'])
+@admin_required
+def update_invite_password_route():
+    """Update the invite password"""
+    new_password = request.form.get('new_invite_password', '').strip()
+    
+    if not new_password:
+        flash('Invite password cannot be empty.', 'danger')
+        return redirect(url_for('admin_settings'))
+    
+    if len(new_password) < 3:
+        flash('Invite password must be at least 3 characters long.', 'danger')
+        return redirect(url_for('admin_settings'))
+    
+    # Update the password
+    update_invite_password(new_password)
+    flash(f'Invite password updated successfully to: {new_password}', 'success')
+    return redirect(url_for('admin_settings'))
+
+@app.route('/admin/default-schedule')
+@admin_required
+def admin_default_schedule():
+    """Admin default schedule management page"""
+    default_schedules = get_all_default_schedules()
+    return render_template('admin_default_schedule.html', default_schedules=default_schedules)
+
+@app.route('/admin/default-schedule/update', methods=['POST'])
+@admin_required
+def update_default_schedule_route():
+    """Update default schedule for a specific day"""
+    day_of_week = int(request.form.get('day_of_week'))
+    is_open = request.form.get('is_open') == 'on'
+    opening_time = request.form.get('opening_time', '09:00')
+    closing_time = request.form.get('closing_time', '16:00')
+    
+    # Validate day of week
+    if day_of_week < 0 or day_of_week > 6:
+        flash('Invalid day of week.', 'danger')
+        return redirect(url_for('admin_default_schedule'))
+    
+    # Validate times if open
+    if is_open:
+        try:
+            opening_dt = datetime.strptime(opening_time, '%H:%M')
+            closing_dt = datetime.strptime(closing_time, '%H:%M')
+            if closing_dt <= opening_dt:
+                flash('Closing time must be after opening time.', 'danger')
+                return redirect(url_for('admin_default_schedule'))
+        except ValueError:
+            flash('Invalid time format.', 'danger')
+            return redirect(url_for('admin_default_schedule'))
+    
+    # Update the default schedule
+    update_default_schedule(day_of_week, is_open, opening_time, closing_time)
+    
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    day_name = days[day_of_week]
+    
+    if is_open:
+        flash(f'Default schedule updated: {day_name} - {opening_time} to {closing_time}', 'success')
+    else:
+        flash(f'Default schedule updated: {day_name} - Closed', 'success')
+    
+    return redirect(url_for('admin_default_schedule'))
+
 def init_database():
     """Initialize the database with tables and admin user"""
     try:
@@ -1002,6 +1180,48 @@ def init_database():
                     print("✓ Added has_logged_in_before column")
             except Exception as e:
                 print(f"Error checking/adding has_logged_in_before column: {e}")
+                db.session.rollback()
+            
+            # Check for system_settings table
+            try:
+                result = db.session.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='system_settings'"))
+                if not result.fetchone():
+                    print("Creating system_settings table...")
+                    db.session.execute(text("""
+                        CREATE TABLE system_settings (
+                            id SERIAL PRIMARY KEY,
+                            setting_name VARCHAR(50) UNIQUE NOT NULL,
+                            setting_value VARCHAR(200) NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    db.session.commit()
+                    print("✓ Created system_settings table")
+            except Exception as e:
+                print(f"Error checking/creating system_settings table: {e}")
+                db.session.rollback()
+            
+            # Check for default_schedule table
+            try:
+                result = db.session.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='default_schedule'"))
+                if not result.fetchone():
+                    print("Creating default_schedule table...")
+                    db.session.execute(text("""
+                        CREATE TABLE default_schedule (
+                            id SERIAL PRIMARY KEY,
+                            day_of_week INTEGER UNIQUE NOT NULL,
+                            is_open BOOLEAN DEFAULT TRUE,
+                            opening_time VARCHAR(5) DEFAULT '09:00',
+                            closing_time VARCHAR(5) DEFAULT '16:00',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    db.session.commit()
+                    print("✓ Created default_schedule table")
+            except Exception as e:
+                print(f"Error checking/creating default_schedule table: {e}")
                 db.session.rollback()
         
         # Create admin user if it doesn't exist

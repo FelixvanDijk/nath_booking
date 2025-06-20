@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Settings - SnF Barbers, Mold{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-cog"></i> Admin Settings</h2>
+        <p class="text-muted">Manage system settings and configuration.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-key"></i> Invite Password Management</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    The invite password is required for new users to register on the system. 
+                    Change it periodically for security or if you need to temporarily restrict new registrations.
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Current Invite Password:</strong></label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="{{ current_invite_password }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('{{ current_invite_password }}')">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                
+                <form method="POST" action="{{ url_for('update_invite_password_route') }}">
+                    <div class="mb-3">
+                        <label for="new_invite_password" class="form-label">New Invite Password:</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="new_invite_password" 
+                               name="new_invite_password" 
+                               placeholder="Enter new invite password"
+                               minlength="3"
+                               required>
+                        <div class="form-text">Must be at least 3 characters long.</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('Are you sure you want to change the invite password? This will affect new user registrations.')">
+                        <i class="fas fa-save"></i> Update Invite Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info"></i> How It Works</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-user-plus text-primary"></i>
+                        New users need this password to register
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-success"></i>
+                        Helps control who can access the system
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-sync text-info"></i>
+                        Can be changed at any time
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-users text-warning"></i>
+                        Existing users are not affected
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-link"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <a href="{{ url_for('admin') }}" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                    <i class="fas fa-calendar-check"></i> View Bookings
+                </a>
+                <a href="{{ url_for('admin_schedule') }}" class="btn btn-outline-info btn-sm mb-2 w-100">
+                    <i class="fas fa-calendar-alt"></i> Manage Schedule
+                </a>
+                <a href="{{ url_for('admin_past_bookings') }}" class="btn btn-outline-warning btn-sm w-100">
+                    <i class="fas fa-history"></i> Past Bookings
+                </a>
+                <a href="{{ url_for('admin_default_schedule') }}" class="btn btn-outline-info btn-sm mt-2 w-100">
+                    <i class="fas fa-calendar-week"></i> Default Schedule
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show a temporary success message
+        const button = event.target.closest('button');
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(function() {
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
+}
+</script>
+{% endblock %} 

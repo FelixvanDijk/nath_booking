@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Default Schedule - SnF Barbers, Mold{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-calendar-week"></i> Default Weekly Schedule</h2>
+        <p class="text-muted">Set default opening hours for each day of the week. These will be used unless you create specific date overrides.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>How it works:</strong> Set your normal weekly schedule here. You can still create specific date overrides for holidays, 
+            special hours, or closures using the <a href="{{ url_for('admin_schedule') }}" class="alert-link">Schedule Management</a> page.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for day_num, schedule in default_schedules.items() %}
+        <div class="col-lg-6 col-xl-4 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-day"></i> {{ schedule.day_name }}
+                    </h5>
+                    {% if schedule.is_open %}
+                        <span class="badge bg-success">Open</span>
+                    {% else %}
+                        <span class="badge bg-danger">Closed</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('update_default_schedule_route') }}">
+                        <input type="hidden" name="day_of_week" value="{{ day_num }}">
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   name="is_open" 
+                                   id="is_open_{{ day_num }}"
+                                   data-day="{{ day_num }}"
+                                   {% if schedule.is_open %}checked{% endif %}>
+                            <label class="form-check-label" for="is_open_{{ day_num }}">
+                                <strong>Open on {{ schedule.day_name }}</strong>
+                            </label>
+                        </div>
+                        
+                        <div id="time_inputs_{{ day_num }}" {% if not schedule.is_open %}style="display: none;"{% endif %}>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label for="opening_time_{{ day_num }}" class="form-label">Opening Time:</label>
+                                    <input type="time" 
+                                           class="form-control" 
+                                           name="opening_time" 
+                                           id="opening_time_{{ day_num }}"
+                                           value="{{ schedule.opening_time }}"
+                                           required>
+                                </div>
+                                <div class="col-6">
+                                    <label for="closing_time_{{ day_num }}" class="form-label">Closing Time:</label>
+                                    <input type="time" 
+                                           class="form-control" 
+                                           name="closing_time" 
+                                           id="closing_time_{{ day_num }}"
+                                           value="{{ schedule.closing_time }}"
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="fas fa-save"></i> Update {{ schedule.day_name }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-muted small">
+                    {% if schedule.is_open %}
+                        Current: {{ schedule.opening_time }} - {{ schedule.closing_time }}
+                    {% else %}
+                        Current: Closed
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-lightbulb"></i> Quick Setup Examples</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-business-time text-primary"></i> Standard Business</h6>
+                        <p class="small text-muted">Monday-Friday: 9 AM - 5 PM<br>Weekend: Closed</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-cut text-success"></i> Extended Hours</h6>
+                        <p class="small text-muted">Monday-Thursday: 9 AM - 7 PM<br>Friday-Saturday: 9 AM - 6 PM<br>Sunday: Closed</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-calendar-check text-info"></i> Weekend Service</h6>
+                        <p class="small text-muted">Tuesday-Saturday: 10 AM - 6 PM<br>Sunday-Monday: Closed</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin_schedule') }}" class="btn btn-outline-primary">
+                <i class="fas fa-calendar-alt"></i> Manage Specific Dates
+            </a>
+            <a href="{{ url_for('admin') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Admin Panel
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleTimeInputs(dayNum) {
+    const checkbox = document.getElementById('is_open_' + dayNum);
+    const timeInputs = document.getElementById('time_inputs_' + dayNum);
+    
+    if (checkbox.checked) {
+        timeInputs.style.display = 'block';
+    } else {
+        timeInputs.style.display = 'none';
+    }
+}
+
+// Initialize event listeners when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners to all checkboxes
+    document.querySelectorAll('input[name="is_open"]').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const dayNum = this.getAttribute('data-day');
+            toggleTimeInputs(dayNum);
+        });
+    });
+});
+</script>
+{% endblock %} 
